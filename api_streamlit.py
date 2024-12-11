@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import datetime
 import json
+import base64
 
 # Step 1: Define API credentials and endpoints
 API_KEY = "9FqzYSKweLsFi48ORHpNwyPYJ4OdyC8N"
