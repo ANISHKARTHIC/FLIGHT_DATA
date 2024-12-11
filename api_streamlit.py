@@ -70,18 +70,63 @@ def convert_price_to_inr(usd_price):
     return round(float(usd_price) * USD_TO_INR, 2)
 
 # Step 6: Streamlit UI
-st.title("Flight Search Tool")
+
+# Styling with CSS
+st.markdown("""
+    <style>
+        .title {
+            text-align: center;
+            color: #4CAF50;
+            font-size: 48px;
+            font-weight: bold;
+        }
+        .header {
+            text-align: center;
+            font-size: 24px;
+            color: #007BFF;
+        }
+        .widget {
+            margin: 20px;
+        }
+        .result {
+            background-color: #f2f2f2;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .button {
+            background-color: #007BFF;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+st.markdown('<div class="title">Flight Search Tool</div>', unsafe_allow_html=True)
 
 # Available airport codes for selection (you can replace this list with real data)
-airport_codes = ['JFK(New York)', 'LAX(Los Angeles)', 'ORD(Chicago)', 'BOM(BOMBAY)', 'DEL(DELHI)', 'BLR(Bangalore)', 'MAA (CHENNAI )','CJB (COIMBATORE)']
+airport_codes = ['JFK', 'LAX', 'ORD', 'BOM', 'DEL', 'BLR', 'MAA', 'CJB']
 
 # User input
-origin = st.selectbox("Select the origin airport code:", airport_codes)
-destination = st.selectbox("Select the destination airport code:", airport_codes)
-departure_date = st.date_input("Enter the departure date (YYYY-MM-DD):")
-query_time = st.time_input("Enter the time to search for flights (HH:MM):")
+col1, col2 = st.columns(2)
 
-if st.button("Search Flights"):
+with col1:
+    origin = st.selectbox("Select the origin airport code:", airport_codes, key="origin", label_visibility="collapsed")
+with col2:
+    destination = st.selectbox("Select the destination airport code:", airport_codes, key="destination", label_visibility="collapsed")
+
+# Departure Date and Time Inputs
+departure_date = st.date_input("Select the departure date:", key="departure_date", label_visibility="collapsed")
+query_time = st.time_input("Select the time for search:", key="query_time", label_visibility="collapsed")
+
+# Search Button
+if st.button("Search Flights", key="search_button", use_container_width=True):
     if origin and destination and departure_date and query_time:
         # Authenticate and get the access token
         token = get_access_token()
@@ -99,9 +144,16 @@ if st.button("Search Flights"):
                 
                 # Display results
                 if results:
-                    st.subheader("Flights within 1-hour range:")
+                    st.subheader("Flights within 1-hour range:", anchor="flights", help="Results for flights within 1 hour of your selected time")
                     for flight in results:
-                        st.write(f"From: {flight['from']}, To: {flight['to']}, Price: ₹{flight['price_inr']}, Time: {flight['time']}")
+                        st.markdown(f"""
+                            <div class="result">
+                                <strong>From:</strong> {flight['from']}<br>
+                                <strong>To:</strong> {flight['to']}<br>
+                                <strong>Price:</strong> ₹{flight['price_inr']}<br>
+                                <strong>Time:</strong> {flight['time']}
+                            </div>
+                        """, unsafe_allow_html=True)
                 else:
                     st.write("No flights found within the 1-hour range.")
             else:
