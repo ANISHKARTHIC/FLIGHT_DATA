@@ -1,8 +1,7 @@
 import streamlit as st
 import requests
 import datetime
-import json
-import base64
+from time import sleep
 
 # Step 1: Define API credentials and endpoints
 API_KEY = "9FqzYSKweLsFi48ORHpNwyPYJ4OdyC8N"
@@ -58,7 +57,6 @@ def find_flights_within_time_range(flights, query_time):
             flight_time = datetime.datetime.strptime(flight_time_str, "%H:%M")
             time_difference = abs((flight_time - query_time).total_seconds()) / 3600
             if time_difference <= 1:  # Check if the time is within 1 hour
-                # Use the airline name from the 'carrierCode' field (not 'validatingAirlineCodes')
                 flight_name = flight["validatingAirlineCodes"][0] if "validatingAirlineCodes" in flight else "Unknown Airline"
                 matching_flights.append({
                     "from": segment["departure"]["iataCode"],
@@ -75,15 +73,24 @@ def convert_price_to_inr(usd_price):
 
 # Step 6: Streamlit UI
 
-# Set Streamlit page config (to include dark mode toggle and overall style)
+# Set Streamlit page config
 st.set_page_config(page_title="Flight Search Tool", page_icon="✈️", layout="centered")
 
+# Dark mode toggle
+if 'dark_mode' not in st.session_state:
+    st.session_state['dark_mode'] = False
+
+def toggle_dark_mode():
+    st.session_state['dark_mode'] = not st.session_state['dark_mode']
+
+st.button("Toggle Dark Mode", on_click=toggle_dark_mode)
+
 # Custom CSS Styling for Dark and Light Mode
-st.markdown("""
+dark_mode_style = """
     <style>
         .title {
             text-align: center;
-            color: #ff6347; /* Tomato color for an attractive title */
+            color: #ff6347;
             font-size: 50px;
             font-family: 'Verdana', sans-serif;
             font-weight: bold;
@@ -96,33 +103,23 @@ st.markdown("""
         .widget {
             margin: 20px;
         }
-        .result {
-            background-color: #f2f2f2;
-            padding: 10px;  /* Reduced padding to avoid large empty space */
-            border-radius: 8px;
+        .result-card {
+            background-color: #f8f8f8;
+            border-radius: 10px;
+            padding: 15px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            margin-bottom: 10px;  /* Reduced margin */
-            transition: all 0.3s ease;
+            transition: transform 0.3s ease;
+            margin-bottom: 15px;
         }
-        .result:hover {
+        .result-card:hover {
             transform: scale(1.05);
             box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
         }
         .result-dark {
-            background-color: #333333;
+            background-color: #444444;
             color: white;
-            padding: 10px;  /* Reduced padding */
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
-            margin-bottom: 10px;  /* Reduced margin */
-            transition: all 0.3s ease;
-        }
-        .result-dark:hover {
-            transform: scale(1.05);
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.7);
         }
         .airport-list {
-            text-align: center;
             font-size: 18px;
             color: #4CAF50;
             font-weight: bold;
@@ -132,78 +129,74 @@ st.markdown("""
             color: white;
             padding: 10px 20px;
             border-radius: 5px;
-            border: none;
-            cursor: pointer;
             font-size: 16px;
         }
         .button:hover {
             background-color: #0056b3;
         }
     </style>
-""", unsafe_allow_html=True)
+"""
+st.markdown(dark_mode_style, unsafe_allow_html=True)
 
 # Title
 st.markdown('<div class="title">Flight Search Tool</div>', unsafe_allow_html=True)
 
-# Available airport codes for selection (with airport names)
+# Available airport codes for selection
 airport_codes = {
     'JFK': 'New York (JFK)', 'LAX': 'Los Angeles (LAX)', 'ORD': 'Chicago (ORD)',
     'BOM': 'Mumbai (BOM)', 'DEL': 'Delhi (DEL)', 'BLR': 'Bangalore (BLR)',
     'MAA': 'Chennai (MAA)', 'CJB': 'Coimbatore (CJB)'
 }
 
-# Display airport codes and names
-st.markdown('<div class="airport-list">Available Airport Codes:</div>', unsafe_allow_html=True)
-for code, name in airport_codes.items():
-    st.markdown(f"- **{code}: {name}**")
-
 # User input
 col1, col2 = st.columns(2)
 
 with col1:
-    origin = st.selectbox("Select the origin airport code:", list(airport_codes.keys()), key="origin", label_visibility="collapsed")
+    origin = st.selectbox("Select origin airport code:", list(airport_codes.keys()), key="origin", label_visibility="collapsed")
 with col2:
-    destination = st.selectbox("Select the destination airport code:", list(airport_codes.keys()), key="destination", label_visibility="collapsed")
+    destination = st.selectbox("Select destination airport code:", list(airport_codes.keys()), key="destination", label_visibility="collapsed")
 
 # Departure Date and Time Inputs
-departure_date = st.date_input("Select the departure date:", key="departure_date", label_visibility="collapsed")
-query_time = st.time_input("Select the time for search:", key="query_time", label_visibility="collapsed")
+departure_date = st.date_input("Select departure date:", key="departure_date")
+query_time = st.time_input("Select desired flight time:", key="query_time")
 
 # Search Button
-if st.button("Search Flights", key="search_button", use_container_width=True):
+if st.button("Search Flights", key="search_button"):
     if origin and destination and departure_date and query_time:
-        # Authenticate and get the access token
-        token = get_access_token()
-        if token:
-            # Fetch flight offers
-            flight_offers = fetch_flight_offers(token, origin.upper(), destination.upper(), departure_date)
-            
-            if flight_offers:
-                # Find flights within the 1-hour time range
-                results = find_flights_within_time_range(flight_offers, query_time.strftime("%H:%M"))
+        with st.spinner("Fetching flight details..."):
+            # Authenticate and get the access token
+            token = get_access_token()
+            if token:
+                # Fetch flight offers
+                flight_offers = fetch_flight_offers(token, origin.upper(), destination.upper(), departure_date)
                 
-                # Convert prices to INR
-                for flight in results:
-                    flight["price_inr"] = convert_price_to_inr(flight["price"])
-                
-                # Display results
-                if results:
-                    st.subheader("Flights within 1-hour range:", anchor="flights", help="Results for flights within 1 hour of your selected time")
+                if flight_offers:
+                    # Find flights within the 1-hour time range
+                    results = find_flights_within_time_range(flight_offers, query_time.strftime("%H:%M"))
+                    
+                    # Convert prices to INR
                     for flight in results:
-                        # Use dark mode style when it's activated
-                        result_class = "result-dark" if st.session_state.get('dark_mode', False) else "result"
-                        st.markdown(f"""
-                            <div class="{result_class}">
-                                <strong>Flight Name:</strong> {flight['flight_name']}<br>
-                                <strong>From:</strong> {flight['from']}<br>
-                                <strong>To:</strong> {flight['to']}<br>
-                                <strong>Price:</strong> ₹{flight['price_inr']}<br>
-                                <strong>Time:</strong> {flight['time']}
-                            </div>
-                        """, unsafe_allow_html=True)
+                        flight["price_inr"] = convert_price_to_inr(flight["price"])
+                    
+                    # Display results
+                    if results:
+                        st.subheader("Flights within 1-hour range:")
+                        for flight in results:
+                            result_class = "result-dark" if st.session_state.get('dark_mode', False) else "result-card"
+                            st.markdown(f"""
+                                <div class="{result_class}">
+                                    <strong>Flight Name:</strong> {flight['flight_name']}<br>
+                                    <strong>From:</strong> {flight['from']}<br>
+                                    <strong>To:</strong> {flight['to']}<br>
+                                    <strong>Price:</strong> ₹{flight['price_inr']}<br>
+                                    <strong>Departure Time:</strong> {flight['time']}
+                                </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.write("No flights found within the 1-hour range.")
                 else:
-                    st.write("No flights found within the 1-hour range.")
+                    st.write("No flight offers available.")
             else:
-                st.write("No flight offers available.")
+                st.write("Authentication failed. Please try again.")
     else:
         st.error("Please fill in all the fields.")
